@@ -1,0 +1,4 @@
+venv/
+True.csv
+Fake.csv
+__pycache__/
