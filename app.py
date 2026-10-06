@@ -52,7 +52,7 @@ def predict():
         prediction = model.predict(vectorized_text)
         
         # Map WELFake labels (1 = Real, 0 = Fake)
-        final_verdict = "Real" if prediction[0] == 1 else "Fake"
+        final_verdict = "Fake" if prediction[0] == 1 else "Real"
 
         return jsonify({'result': final_verdict})
 
