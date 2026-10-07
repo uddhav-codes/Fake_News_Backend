@@ -5,3 +5,4 @@ gunicorn==21.2.0
 google-generativeai>=0.4.0
 lxml_html_clean
 cloudscraper
+duckduckgo-search
