@@ -92,9 +92,14 @@ def predict():
         response = model.generate_content(prompt)
         verdict = response.text.strip().lower()
 
-        final_verdict = "Real" if "real" in verdict else "Fake"
+        # Map verdict to uppercase to match script.js
+        prediction_val = "REAL" if "real" in verdict else "FAKE"
 
-        return jsonify({'result': final_verdict})
+        return jsonify({
+            'prediction': prediction_val,
+            'result': "Real" if prediction_val == "REAL" else "Fake",
+            'message': 'Fact-checked via real-time web search and Gemini analysis.'
+        })
 
     except Exception as e:
         return jsonify({'error': f'Fact-checking failed: {str(e)}'}), 500
