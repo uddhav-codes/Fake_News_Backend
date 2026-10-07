@@ -12,7 +12,7 @@ CORS(app)
 api_key = os.environ.get("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-3.8-flash')
+    model = genai.GenerativeModel('gemini-3.8-flash', tools='google_search_retrieval')
 else:
     model = None
 
@@ -72,9 +72,9 @@ def predict():
 
         # 2. Prompt Gemini to fact-check the text
         prompt = f"""
-        You are a strict fact-checking AI. Analyze the following news text for factual accuracy. 
-        Cross-check the claims against your knowledge base. 
-        Respond with EXACTLY ONE WORD: 'Real' if the core claims are factually true, or 'Fake' if the claims are false, heavily misleading, or satirical. Do not include any punctuation or explanations.
+        You are a strict, real-time fact-checking AI. 
+        Analyze the following news text for factual accuracy. You must use Google Search to verify recent or breaking events. 
+        Respond with EXACTLY ONE WORD: 'Real' if the core claims are factually verified and true, or 'Fake' if the claims are false, heavily misleading, or satirical. Do not include any punctuation or explanations.
 
         Text to analyze:
         {text_to_analyze}
