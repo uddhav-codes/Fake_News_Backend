@@ -1,20 +1,24 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from newspaper import Article
+from newspaper import Article, Config
 import google.generativeai as genai
 import os
 
 app = Flask(__name__)
 CORS(app)
 
-# Configure Gemini using an environment variable (set securely in Render)
+# Configure Gemini
 api_key = os.environ.get("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
-    # Using flash for the fastest response times
     model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     model = None
+
+# Create a browser disguise to bypass 403 Forbidden errors
+scraper_config = Config()
+scraper_config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+scraper_config.request_timeout = 10
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
@@ -36,13 +40,14 @@ def predict():
         # 1. Extract text based on input type
         if req_type == 'url':
             try:
-                article = Article(content)
+                # Pass the disguise configuration into the Article downloader
+                article = Article(content, config=scraper_config)
                 article.download()
                 article.parse()
                 text_to_analyze = article.text
                 
                 if not text_to_analyze.strip():
-                    return jsonify({'error': 'Website blocked the scraper or no text found. Try pasting the text.'}), 400
+                    return jsonify({'error': 'Website blocked the scraper or no text found. Try pasting the text manually.'}), 400
             except Exception as e:
                 return jsonify({'error': f'Failed to read URL: {str(e)}'}), 400
                 
