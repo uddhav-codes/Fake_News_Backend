@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from newspaper import Article, Config
+from newspaper import Article
+import cloudscraper
 import google.generativeai as genai
 import os
 
@@ -15,10 +16,14 @@ if api_key:
 else:
     model = None
 
-# Create a browser disguise to bypass 403 Forbidden errors
-scraper_config = Config()
-scraper_config.browser_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-scraper_config.request_timeout = 10
+# Initialize cloudscraper to bypass Cloudflare/WAF 403 errors
+scraper = cloudscraper.create_scraper(
+    browser={
+        'browser': 'chrome',
+        'platform': 'windows',
+        'desktop': True
+    }
+)
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
@@ -40,14 +45,23 @@ def predict():
         # 1. Extract text based on input type
         if req_type == 'url':
             try:
-                # Pass the disguise configuration into the Article downloader
-                article = Article(content, config=scraper_config)
-                article.download()
+                # Use cloudscraper to fetch the raw HTML, bypassing WAFs
+                response = scraper.get(content, timeout=15)
+                
+                # Check if the WAF still blocked it (e.g., Datacenter IP block)
+                if response.status_code != 200:
+                    return jsonify({'error': f'Website actively blocked the scraper (Status {response.status_code}). Try pasting the text manually.'}), 400
+                    
+                html_content = response.text
+                
+                # Feed the raw HTML into newspaper3k
+                article = Article(content)
+                article.download(input_html=html_content)
                 article.parse()
                 text_to_analyze = article.text
                 
                 if not text_to_analyze.strip():
-                    return jsonify({'error': 'Website blocked the scraper or no text found. Try pasting the text manually.'}), 400
+                    return jsonify({'error': 'No text found in the article. Try pasting the text manually.'}), 400
             except Exception as e:
                 return jsonify({'error': f'Failed to read URL: {str(e)}'}), 400
                 
