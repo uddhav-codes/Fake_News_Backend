@@ -5,6 +5,7 @@ import cloudscraper
 import google.generativeai as genai
 import os
 from duckduckgo_search import DDGS
+import concurrent.futures
 
 app = Flask(__name__)
 CORS(app)
@@ -13,7 +14,6 @@ CORS(app)
 api_key = os.environ.get("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
-    # Revert to the standard free model without the premium search tool
     model = genai.GenerativeModel('gemini-3.8-flash')
 else:
     model = None
@@ -52,7 +52,7 @@ def predict():
                 article.download(input_html=response.text)
                 article.parse()
                 text_to_analyze = article.text
-                search_query = article.title # Grab the title to search the web
+                search_query = article.title
                 
                 if not text_to_analyze.strip():
                     return jsonify({'error': 'No text found in the article.'}), 400
@@ -61,19 +61,26 @@ def predict():
                 
         elif req_type == 'text':
             text_to_analyze = content
-            # Grab the first 60 characters of the pasted text to use as a search query
             search_query = content[:60]
         else:
             return jsonify({'error': 'Invalid input type.'}), 400
 
-        # 2. Perform a free DuckDuckGo Search to fetch live context
+        # 2. Perform a free DuckDuckGo Search with a strict wall-clock timeout
         live_context = ""
         try:
-            results = DDGS().text(search_query, max_results=3)
+            def fetch_search():
+                # Use the "lite" backend to avoid heavy bot-protection stalls
+                return DDGS().text(search_query, max_results=3, backend="lite")
+                
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(fetch_search)
+                # Enforce an absolute 4-second cutoff. If it stalls, we abandon the search immediately.
+                results = future.result(timeout=4)
+                
             for res in results:
                 live_context += f"- {res['title']}: {res['body']}\n"
         except Exception:
-            live_context = "No live web results available."
+            live_context = "No live web results available. Proceeding with internal knowledge."
 
         # 3. Prompt Gemini with the live web evidence
         prompt = f"""
